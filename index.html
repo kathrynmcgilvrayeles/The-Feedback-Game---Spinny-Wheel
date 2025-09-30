@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Feedback Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            /* Brand Colors */
+            --brand-pink: #e72582;
+            --brand-grey: #abb5bf;
+            --brand-dark-blue: #1f2a52;
+            --brand-cyan: #00bec7;
+            --brand-light-cyan: #d2f0f0;
+            --brand-mid-blue: #2e4d6b;
+            --brand-white: #ffffff;
+        }
+        canvas {
+            /* This is the original, trusted transition setting */
+            transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="bg-[var(--brand-light-cyan)] flex items-center justify-center h-screen">
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden w-full h-full flex flex-col items-center justify-center p-4 md:p-8">
+        <h1 class="text-5xl md:text-6xl font-bold text-[var(--brand-dark-blue)] mb-4">The Feedback Game</h1>
+        <p id="turn-indicator" class="text-2xl md:text-3xl text-[var(--brand-mid-blue)] mb-12">It's someone's turn to spin!</p>
+
+        <div class="flex flex-col md:flex-row items-center justify-center gap-8 w-full max-w-7xl">
+            <!-- Scoreboard -->
+            <div class="w-full md:w-1/3 lg:w-1/4">
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-center mb-6 text-[var(--brand-dark-blue)]">Scoreboard</h2>
+                    <div id="scoreboard" class="space-y-4">
+                        <!-- Player scores will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wheel -->
+            <div class="relative flex items-center justify-center w-full md:w-2/3 lg:w-3/4 max-w-[650px] aspect-square">
+                <div class="absolute w-full h-full">
+                    <canvas id="wheelCanvas" width="650" height="650"></canvas>
+                </div>
+                <button id="spin-button" class="absolute z-10 bg-white w-32 h-32 rounded-full text-3xl font-bold text-[var(--brand-dark-blue)] shadow-xl border-8 border-white flex items-center justify-center transition-transform duration-200 active:scale-95">SPIN</button>
+                <div class="absolute top-[-20px] left-1/2 -translate-x-1/2" style="width: 0; height: 0; border-left: 26px solid transparent; border-right: 26px solid transparent; border-top: 40px solid var(--brand-pink);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 p-4">
+        <div class="bg-white rounded-2xl shadow-xl p-10 max-w-xl w-full text-center">
+            <div id="result-content"></div>
+        </div>
+    </div>
+
+    <!-- Winner Modal -->
+    <div id="winner-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl p-16 max-w-xl w-full text-center transform scale-0 transition-transform duration-500">
+            <h2 class="text-5xl font-bold text-[var(--brand-pink)] mb-4">Winner!</h2>
+            <p id="winner-name" class="text-4xl text-[var(--brand-dark-blue)] mb-8"></p>
+            <button id="play-again-button" class="bg-[var(--brand-pink)] text-white font-bold py-4 px-10 rounded-lg text-2xl transition-transform duration-200 hover:scale-105">Play Again</button>
+        </div>
+    </div>
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- Setup Screen -->
+    <div id="setup-screen" class="fixed inset-0 bg-gray-900 bg-opacity-20 flex items-center justify-center z-30">
+        <div class="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-lg m-4">
+            <h1 class="text-4xl font-bold text-center mb-2 text-[var(--brand-dark-blue)]">Game Setup</h1>
+            <p class="text-lg text-center text-[var(--brand-mid-blue)] mb-8">Add at least two players to start.</p>
+            
+            <div class="flex gap-3 mb-4">
+                <input type="text" id="player-name-input" placeholder="e.g., Alex" class="w-full px-4 py-3 text-lg border border-[var(--brand-grey)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-pink)]">
+                <button id="add-player-button" class="bg-[var(--brand-dark-blue)] text-white font-semibold px-8 py-3 text-lg rounded-lg hover:bg-[var(--brand-mid-blue)] transition-colors">Add</button>
+            </div>
+
+            <div class="my-8">
+                <h2 class="text-xl font-semibold mb-2 text-[var(--brand-dark-blue)]">Team:</h2>
+                <div id="player-list" class="space-y-2">
+                    <p class="text-[var(--brand-mid-blue)]">No players yet.</p>
+                </div>
+            </div>
+
+            <button id="start-game-button" class="w-full bg-[var(--brand-pink)] text-white font-bold py-4 rounded-lg text-xl hover:opacity-90 transition-opacity disabled:bg-[var(--brand-grey)] disabled:cursor-not-allowed">Start Game</button>
+            
+            <div class="mt-10">
+                 <h2 class="text-xl font-semibold mb-2 text-[var(--brand-dark-blue)]">How it works</h2>
+                 <ul class="list-disc list-inside text-lg text-[var(--brand-dark-blue)] space-y-2">
+                     <li>Spin the wheel and answer the question.</li>
+                     <li>Answering a reflection question earns +1 point.</li>
+                     <li>Everyone gets 5 spins; highest score wins.</li>
+                 </ul>
+            </div>
+        </div>
+    </div>
+
+
+<script>
+    const segments = [
+        { label: 'Goal vs. Outcome', question: 'What was the problem you set out to solve and did you achieve it to your inital expectations?', type: 'question' },
+        { label: 'Spin Again', type: 'special' },
+        { label: 'Challenge Assumptions', question: 'What was your biggest hurdle and the assumption behind it?', type: 'question' },
+        { label: 'Skip Your Turn', type: 'special' },
+        { label: 'Other Perspectives', question: 'What might an alternative approach look like, and what are its merits?', type: 'question' },
+        { label: 'Change Outcomes', question: 'If you changed one key decision, what would be the consequences?', type: 'question' },
+        { label: 'Evidence-Based Lesson', question: 'What is your key takeaway, and what evidence supports it?', type: 'question' },
+        { label: 'Spin Again', type: 'special' },
+        { label: 'The \'Aha!\' Moment', question: "Describe your main 'aha!' moment and what led to it.", type: 'question' },
+        { label: 'Skip Your Turn', type: 'special' },
+        { label: 'Implications for Future', question: "What are the key implications from this for your future work?", type: 'question' },
+        { label: 'The Next Question', question: 'What deeper question has this experience raised for you?', type: 'question' },
+    ];
+
+    const brandColors = {
+        pink: '#e72582',
+        grey: '#abb5bf',
+        darkBlue: '#1f2a52',
+        cyan: '#00bec7',
+        lightCyan: '#d2f0f0',
+        midBlue: '#2e4d6b',
+        white: '#ffffff',
+    };
+    
+    const segmentColors = [brandColors.darkBlue, brandColors.grey];
+    const specialSegmentColor = brandColors.pink;
+
+    let players = [];
+    let currentPlayerIndex = 0;
+    const spinsPerPlayer = 5;
+
+    const setupScreen = document.getElementById('setup-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const playerNameInput = document.getElementById('player-name-input');
+    const addPlayerButton = document.getElementById('add-player-button');
+    const playerList = document.getElementById('player-list');
+    const startGameButton = document.getElementById('start-game-button');
+    const spinButton = document.getElementById('spin-button');
+    const turnIndicator = document.getElementById('turn-indicator');
+    const scoreboard = document.getElementById('scoreboard');
+    const resultModal = document.getElementById('result-modal');
+    const resultContent = document.getElementById('result-content');
+    const winnerModal = document.getElementById('winner-modal');
+    const winnerName = document.getElementById('winner-name');
+    const playAgainButton = document.getElementById('play-again-button');
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const confettiCtx = confettiCanvas.getContext('2d');
+
+    // --- Game Setup Logic ---
+    function updatePlayerList() {
+        if (players.length === 0) {
+            playerList.innerHTML = `<p class="text-[var(--brand-mid-blue)]">No players yet.</p>`;
+        } else {
+            playerList.innerHTML = players.map((player, index) => `
+                <div class="flex justify-between items-center bg-[var(--brand-light-cyan)] p-3 rounded-lg">
+                    <span class="font-medium text-[var(--brand-dark-blue)]">${player.name}</span>
+                    <button class="text-red-500 hover:text-red-700 text-3xl leading-none" onclick="removePlayer(${index})">&times;</button>
+                </div>
+            `).join('');
+        }
+        startGameButton.disabled = players.length < 2;
+    }
+
+    function addPlayer() {
+        const name = playerNameInput.value.trim();
+        if (name && !players.some(p => p.name === name)) {
+            players.push({ name, score: 0, spins: 0, answeredQuestions: [] });
+            playerNameInput.value = '';
+            updatePlayerList();
+        }
+    }
+
+    window.removePlayer = (index) => {
+        players.splice(index, 1);
+        updatePlayerList();
+    };
+    
+    playerNameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addPlayer();
+    });
+    addPlayerButton.addEventListener('click', addPlayer);
+    
+    startGameButton.addEventListener('click', () => {
+        setupScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+        startGame();
+    });
+
+    // --- Wheel Drawing Logic ---
+    const drawWheel = () => {
+        const numSegments = segments.length;
+        const anglePerSegment = (2 * Math.PI) / numSegments;
+        const radius = canvas.width / 2;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        segments.forEach((segment, i) => {
+            ctx.beginPath();
+            ctx.moveTo(radius, radius);
+            ctx.arc(radius, radius, radius - 10, i * anglePerSegment, (i + 1) * anglePerSegment);
+            ctx.closePath();
+
+            const bgColor = segment.type === 'special' ? specialSegmentColor : segmentColors[i % segmentColors.length];
+            ctx.fillStyle = bgColor;
+            ctx.fill();
+
+            ctx.strokeStyle = brandColors.white;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.save();
+            ctx.translate(radius, radius);
+            ctx.rotate(i * anglePerSegment + anglePerSegment / 2);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = brandColors.white;
+            ctx.font = 'bold 18px Inter, sans-serif';
+            
+            const words = segment.label.split(' ');
+            if (words.length > 1 && segment.label.length > 12) { 
+                 const midPoint = Math.ceil(words.length / 2);
+                 const line1 = words.slice(0, midPoint).join(' ');
+                 const line2 = words.slice(midPoint).join(' ');
+                 ctx.fillText(line1, radius * 0.60, 5);
+                 ctx.fillText(line2, radius * 0.60, 25);
+            } else {
+                 ctx.fillText(segment.label, radius * 0.65, 15);
+            }
+            
+            ctx.restore();
+        });
+    };
+
+    // --- Game Core Logic ---
+    function startGame() {
+        currentPlayerIndex = 0;
+        updateScoreboard();
+        updateTurnIndicator();
+        spinButton.disabled = false;
+    }
+    
+    function updateScoreboard() {
+        scoreboard.innerHTML = players.map((player, index) => `
+            <div class="p-5 rounded-lg shadow-sm ${index === currentPlayerIndex ? 'bg-[var(--brand-pink)]' : 'bg-[var(--brand-light-cyan)]'}">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-xl ${index === currentPlayerIndex ? 'text-white' : 'text-[var(--brand-dark-blue)]'}">${player.name}</span>
+                    <span class="font-bold text-2xl ${index === currentPlayerIndex ? 'text-white' : 'text-[var(--brand-dark-blue)]'}">${player.score}</span>
+                </div>
+                <p class="text-base mt-1 ${index === currentPlayerIndex ? 'text-white' : 'text-[var(--brand-mid-blue)]'}">Spins: ${player.spins}/${spinsPerPlayer}</p>
+            </div>
+        `).join('');
+    }
+
+    function updateTurnIndicator() {
+        const currentPlayer = players[currentPlayerIndex];
+        turnIndicator.textContent = `It's ${currentPlayer.name}'s turn to spin!`;
+    }
+    
+    function nextTurn() {
+        const currentPlayer = players[currentPlayerIndex];
+        if (currentPlayer.spins >= spinsPerPlayer) {
+             const allFinished = players.every(p => p.spins >= spinsPerPlayer);
+             if (allFinished) {
+                 endGame();
+                 return;
+             }
+        }
+        
+        do {
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+        } while (players[currentPlayerIndex].spins >= spinsPerPlayer);
+
+        updateScoreboard();
+        updateTurnIndicator();
+        spinButton.disabled = false;
+    }
+
+    spinButton.addEventListener('click', () => {
+        spinWheel();
+    });
+
+    function getAvailableSegment() {
+        const currentPlayer = players[currentPlayerIndex];
+        const availableQuestions = segments.filter((seg, index) => 
+            seg.type === 'question' && !currentPlayer.answeredQuestions.includes(index)
+        );
+        
+        const availableSpecials = segments.filter(seg => seg.type === 'special');
+        
+        let targetPool = [];
+
+        if (availableQuestions.length > 0) {
+            targetPool = [...availableQuestions, ...availableSpecials];
+        } else {
+            targetPool = availableSpecials;
+        }
+
+        const randomIndex = Math.floor(Math.random() * targetPool.length);
+        const chosenSegment = targetPool[randomIndex];
+        const originalIndex = segments.findIndex(s => s === chosenSegment);
+
+        return { ...chosenSegment, index: originalIndex };
+    }
+
+    // --- THIS IS THE ORIGINAL, RESTORED SPINNING LOGIC ---
+    function spinWheel() {
+        spinButton.disabled = true;
+        const targetSegment = getAvailableSegment();
+        const numSegments = segments.length;
+        const totalDegrees = 360;
+        const anglePerSegment = totalDegrees / numSegments;
+        
+        // The pointer is at the top, which corresponds to 270 degrees in a circle where 0 is to the right.
+        const pointerAngle = 270; 
+        
+        // Calculate the angle for the middle of the target segment.
+        const middleOfSegmentAngle = (targetSegment.index * anglePerSegment) + (anglePerSegment / 2);
+        
+        // Add a random number of full rotations to make the spin exciting.
+        const randomSpins = (Math.floor(Math.random() * 4) + 4) * totalDegrees; // 4 to 7 full spins.
+        
+        // The final rotation is calculated to align the middle of the target segment with the pointer at the top.
+        const rotation = randomSpins + pointerAngle - middleOfSegmentAngle;
+
+        canvas.style.transform = `rotate(${rotation}deg)`;
+        
+        // This event listener is the original, simple version. It waits for the transition to end,
+        // then calls the onSpinEnd function with the correct segment that was chosen at the start of the spin.
+        canvas.addEventListener('transitionend', () => onSpinEnd(targetSegment), { once: true });
+    }
+    
+    function onSpinEnd(segment) {
+        if (!segment) { 
+            console.error("Spin result was invalid.");
+            spinButton.disabled = false;
+            return;
+        }
+
+        const currentPlayer = players[currentPlayerIndex];
+        currentPlayer.spins++;
+        
+        let modalHTML = '';
+
+        if (segment.type === 'question') {
+            currentPlayer.answeredQuestions.push(segment.index);
+            modalHTML = `
+                <div class="flex items-center justify-center w-20 h-20 rounded-full bg-[var(--brand-cyan)] mx-auto mb-6">
+                    <span class="text-white text-5xl font-bold">?</span>
+                </div>
+                <h2 class="text-3xl font-bold mb-4 text-[var(--brand-dark-blue)]">${segment.label}</h2>
+                <p class="text-xl mb-8 text-[var(--brand-dark-blue)]">${segment.question}</p>
+                <button onclick="handleAnswered()" class="bg-[var(--brand-pink)] text-white font-bold py-3 px-8 rounded-lg text-xl">Answered (+1 Point)</button>
+            `;
+        } else { // Special
+            modalHTML = `
+                <h2 class="text-4xl font-bold mb-8 text-[var(--brand-dark-blue)]">${segment.label}</h2>
+                <button onclick="closeModal(false)" class="bg-[var(--brand-dark-blue)] text-white font-bold py-3 px-8 rounded-lg text-xl">Continue</button>
+            `;
+            if (segment.label === 'Spin Again') {
+                currentPlayer.spins--;
+            }
+        }
+        
+        resultContent.innerHTML = modalHTML;
+        resultModal.classList.remove('hidden');
+
+        window.handleAnswered = () => {
+             players[currentPlayerIndex].score++;
+             closeModal(true);
+        }
+
+        window.closeModal = (turnOver) => {
+            resultModal.classList.add('hidden');
+            if (segment.label === 'Spin Again') {
+                spinButton.disabled = false;
+                updateScoreboard();
+                updateTurnIndicator();
+            } else if (turnOver || segment.label === 'Skip Your Turn') {
+                nextTurn();
+            }
+        }
+    }
+
+    function endGame() {
+        spinButton.disabled = true;
+        turnIndicator.textContent = "Game Over!";
+        
+        const maxScore = Math.max(...players.map(p => p.score));
+        const winners = players.filter(p => p.score === maxScore);
+        
+        if (winners.length === 1) {
+            winnerName.textContent = `${winners[0].name} wins!`;
+        } else {
+            winnerName.textContent = "It's a tie!";
+        }
+        
+        winnerModal.classList.remove('hidden');
+        setTimeout(() => {
+            winnerModal.querySelector('div').classList.add('scale-100');
+            launchConfetti();
+        }, 100);
+    }
+    
+    playAgainButton.addEventListener('click', () => {
+        players.forEach(p => {
+            p.score = 0;
+            p.spins = 0;
+            p.answeredQuestions = [];
+        });
+        winnerModal.classList.add('hidden');
+        winnerModal.querySelector('div').classList.remove('scale-100');
+        
+        // This is the original logic to reset the wheel for a new game.
+        canvas.style.transition = 'none';
+        canvas.style.transform = 'rotate(0deg)';
+        setTimeout(() => {
+             canvas.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        }, 50);
+
+        startGame();
+    });
+
+    // --- Confetti Logic ---
+    let confetti = [];
+    const confettiCount = 200;
+    const gravity = 0.5;
+    const terminalVelocity = 5;
+    const drag = 0.075;
+    const colors = ['#e72582', '#abb5bf', '#1f2a52', '#00bec7', '#d2f0f0', '#2e4d6b'];
+
+    function resizeCanvas() {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+    }
+
+    function launchConfetti() {
+        resizeCanvas();
+        confetti = [];
+        for (let i = 0; i < confettiCount; i++) {
+            confetti.push({
+                x: confettiCanvas.width / 2,
+                y: confettiCanvas.height / 2,
+                r: Math.random() * 5 + 4,
+                d: Math.random() * confettiCount,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                tilt: Math.floor(Math.random() * 10) - 10,
+                tiltAngleIncrement: Math.random() * 0.07 + 0.05,
+                tiltAngle: 0,
+                angle: Math.random() * 2 * Math.PI,
+                vx: Math.random() * 6 - 3,
+                vy: Math.random() * -15 - 5,
+            });
+        }
+        updateConfetti();
+    }
+
+    let animationFrameId;
+    function updateConfetti() {
+        confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        
+        confetti.forEach((c, i) => {
+            c.vy += gravity;
+            c.vx *= (1-drag);
+            c.x += c.vx;
+            c.y += c.vy;
+            c.tiltAngle += c.tiltAngleIncrement;
+            
+            confettiCtx.beginPath();
+            confettiCtx.lineWidth = c.r / 2;
+            confettiCtx.strokeStyle = c.color;
+            confettiCtx.moveTo(c.x + c.tilt + c.r, c.y);
+            confettiCtx.lineTo(c.x + c.tilt, c.y + c.tilt + c.r);
+            confettiCtx.stroke();
+            
+            if (c.y > confettiCanvas.height) {
+                confetti.splice(i, 1);
+            }
+        });
+        
+        if (confetti.length > 0) {
+            animationFrameId = requestAnimationFrame(updateConfetti);
+        } else {
+             confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        }
+    }
+
+
+    // --- Initial Load ---
+    window.onload = () => {
+        updatePlayerList();
+        drawWheel();
+        window.addEventListener('resize', resizeCanvas);
+    };
+
+</script>
+</body>
+</html>
+
